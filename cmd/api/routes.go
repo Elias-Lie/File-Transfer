@@ -2,10 +2,12 @@ package main
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/httprate"
 )
 
 func (app *application) routes() http.Handler {
@@ -22,6 +24,13 @@ func (app *application) routes() http.Handler {
 		MaxAge:           300,
 	}))
 	router.Use(app.authenticate)
+	router.Use(httprate.Limit(
+		10,
+		1*time.Minute,
+		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
+			app.tooManyRequests(w, r)
+		}),
+	))
 
 	router.NotFound(app.notFoundResponse)
 	router.MethodNotAllowed(app.methodNotAllowedResponse)
@@ -30,6 +39,13 @@ func (app *application) routes() http.Handler {
 
 	router.Group(func(router chi.Router) {
 		router.Use(app.requireActivatedUser)
+		router.Use(httprate.Limit(
+			5,
+			1*time.Minute,
+			httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
+				app.tooManyRequests(w, r)
+			}),
+		))
 
 		router.Get("/users/files", app.listUserFilesHandler)
 		router.Post("/users/files", app.uploadFileHandler)
